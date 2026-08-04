@@ -35,6 +35,9 @@ if (window.top !== window.self) {
 
   // 각 페이지 열기마다 부모와 GAS 화면만 공유하는 일회성 난수입니다.
   const bridgeNonce = createCacheBuster();
+  // googleusercontent 중계 창은 출처만으로 신뢰하지 않고 handshake를
+  // 완료한 창만 새로고침 요청을 보낼 수 있도록 추적합니다.
+  const trustedMessageSources = new WeakSet();
   const gasUrl = new URL(frame.dataset.gasSrc);
   gasUrl.searchParams.set('hj_bridge_nonce', bridgeNonce);
   frame.src = gasUrl.toString();
@@ -45,7 +48,10 @@ if (window.top !== window.self) {
     if (!isGasOrigin || !event.data) return;
 
     // GAS 화면은 공식 GitHub 래퍼 안에 있을 때만 이 확인값을 받을 수 있습니다.
-    if (event.data.type === 'HJ_PARENT_HANDSHAKE_REQUEST' && event.data.nonce) {
+    if (event.data.type === 'HJ_PARENT_HANDSHAKE_REQUEST' &&
+        typeof event.data.nonce === 'string' && event.data.nonce.length >= 16 &&
+        event.data.nonce.length <= 128 && event.source) {
+      trustedMessageSources.add(event.source);
       try {
         event.source.postMessage({ type: 'HJ_PARENT_HANDSHAKE_RESPONSE', nonce: event.data.nonce }, event.origin);
       } catch (_) {}
@@ -55,10 +61,11 @@ if (window.top !== window.self) {
     // GAS는 내부 iframe을 한 번 더 만들 수 있습니다. 직접 iframe 또는
     // GAS 전용 중계 출처만 후보로 확인한 뒤 일회성 난수까지 검증합니다.
     const isDirectFrame = event.source === frame.contentWindow;
+    const isTrustedSource = isDirectFrame || trustedMessageSources.has(event.source);
     // GAS는 내부 중계 iframe을 추가할 수 있습니다. 이 경우에도 매번 새로 만든
     // bridgeNonce가 일치해야만 처리하므로, 단순히 googleusercontent 출처인
     // 다른 화면은 요청을 위조할 수 없습니다.
-    if ((!isDirectFrame && !isGasOrigin) || !event.data ||
+    if (!isTrustedSource || !event.data ||
         event.data.type !== 'HJ_FORCE_REFRESH' || event.data.nonce !== bridgeNonce) return;
 
     // GAS 화면이 요청을 정상 전달받았음을 알리고 곧바로 상위 페이지를 새로고침합니다.
