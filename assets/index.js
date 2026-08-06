@@ -44,7 +44,7 @@ if (window.top !== window.self) {
 
   window.addEventListener('message', function(event) {
     const isGasOrigin = event.origin === 'https://script.google.com' ||
-      /^https:\/\/[a-z0-9-]+\.googleusercontent\.com$/i.test(event.origin);
+      /^https:\/\/[a-z0-9-]+-script\.googleusercontent\.com$/i.test(event.origin);
     if (!isGasOrigin || !event.data) return;
 
     // GAS 화면은 공식 GitHub 래퍼 안에 있을 때만 이 확인값을 받을 수 있습니다.
